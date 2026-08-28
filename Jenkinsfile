@@ -8,6 +8,8 @@ pipeline {
 
   environment {
     TF_IN_AUTOMATION = "true"
+    // Sans ca l'AWS CLI reprend la region du fichier de config de la machine
+    AWS_DEFAULT_REGION = "us-east-1"
   }
 
   stages {

@@ -65,3 +65,8 @@ variable "app_port" {
   type        = number
   default     = 8080
 }
+
+variable "auteurs" {
+  description = "Binome affiche dans le pied de page"
+  type        = string
+}

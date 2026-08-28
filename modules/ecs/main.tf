@@ -156,6 +156,8 @@ resource "aws_ecs_task_definition" "app" {
       # Pas de base sur cette cible : l application tourne en mode degrade.
       environment = [
         { name = "APP_ENV", value = "production" },
+        { name = "APP_NOM", value = "Boutique IPSSI" },
+        { name = "APP_AUTEURS", value = var.auteurs },
         { name = "APP_CIBLE", value = "ecs" },
         { name = "TP_NAME", value = "PROJET" },
         { name = "TP_TITRE", value = "Orchestration automatisee : ECS et Kubernetes" },

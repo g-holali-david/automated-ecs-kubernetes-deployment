@@ -36,3 +36,8 @@ variable "memory" {
   type        = string
   default     = "512"
 }
+
+variable "auteurs" {
+  description = "Binome affiche dans le pied de page"
+  type        = string
+}

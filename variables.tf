@@ -6,19 +6,25 @@ variable "projet" {
   default     = "boutique"
 }
 
+variable "auteurs" {
+  description = "Binome affiche dans le pied de page de l'application"
+  type        = string
+  default     = "Holali David GAVI et Claire Daniele EBA"
+}
+
 # ECS tire l'image depuis ECR. Minikube ne peut pas s'y authentifier sans
 # imagePullSecret, l'image y est donc chargee localement.
 
 variable "image_ecs" {
   description = "Image applicative pour ECS (depot ECR, tag explicite)"
   type        = string
-  default     = "674501463174.dkr.ecr.us-east-1.amazonaws.com/boutique:v7.0.0"
+  default     = "674501463174.dkr.ecr.us-east-1.amazonaws.com/boutique:v8.0.0"
 }
 
 variable "image_k8s" {
   description = "Image applicative pour Kubernetes, chargee via minikube image load"
   type        = string
-  default     = "web-ipssi:v7.0.0"
+  default     = "web-ipssi:v8.0.0"
 }
 
 # Variable pour le déploiement ECS

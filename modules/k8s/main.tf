@@ -20,9 +20,10 @@ resource "kubernetes_config_map_v1" "app" {
   }
 
   data = {
-    APP_ENV   = "production"
-    APP_NOM   = "Boutique IPSSI"
-    APP_CIBLE = "kubernetes"
+    APP_ENV     = "production"
+    APP_NOM     = "Boutique IPSSI"
+    APP_AUTEURS = var.auteurs
+    APP_CIBLE   = "kubernetes"
 
     # Contexte affiche par l'application
     TP_NAME     = "PROJET"
