@@ -1,67 +1,59 @@
-# Captures a realiser sur la stack de Claire Daniele EBA
+# Captures de la stack de Claire Daniele EBA
 
-Meme liste que `docs/captures-stack-david`, prises sur son compte AWS Academy
-et son cluster Minikube. Nommer les fichiers avec la meme numerotation pour que
-le rapport puisse renvoyer aux deux series.
+Captures prises sur son propre code, son compte AWS Academy et son cluster Minikube.
+Les noms de ressources et de cluster lui sont propres : cette liste decrit ce que
+chaque capture doit montrer, pas des noms imposes.
 
-## Prealable : deployer la stack
+Garder la meme numerotation que `docs/captures-stack-david` pour que le rapport
+puisse renvoyer aux deux series.
 
-L'etat Terraform et le depot ECR du binome sont sur le compte de David, qui n'est
-pas accessible depuis un autre compte Academy. Il faut donc pointer sur les siens.
+## Cible ECS
 
-1. Creer le bucket d'etat :
+| # | Ce que la capture doit montrer |
+|---|---|
+| 01 | L'application repondant sur l'URL publique de l'ALB |
+| 02 | Le service ECS : statut actif, nombre de taches en cours, dernier deploiement termine |
+| 03 | La task definition : execution role, mode reseau, CPU et memoire |
+| 04 | Le target group : cibles en `healthy` |
+| 05 | Le security group des taches : la regle entrante n'autorise que le SG de l'ALB |
+| 06 | Le depot ECR : immutabilite des tags et chiffrement |
+| 07 | Les images publiees avec leurs tags explicites |
+| 08 | Le groupe de logs CloudWatch et ses flux |
 
-```bash
-aws s3api create-bucket --bucket tfstate-ipssi-<ID_DE_VOTRE_COMPTE> --region us-east-1
-```
+## Cible Kubernetes
 
-2. Initialiser Terraform sur ce bucket :
+| # | Ce que la capture doit montrer |
+|---|---|
+| 09 | L'application repondant via l'Ingress |
+| 10 | Les Deployments et leurs images |
+| 11 | Les pods : noeud, image, statut `Running` |
+| 12 | Les Services et leurs IP de cluster |
+| 13 | L'Ingress et son hote |
+| 14 | La ConfigMap |
+| 15 | Le Secret de la base (valeur masquee) |
+| 16 | La PVC liee a son volume |
+| 17 | Le noeud du cluster, avec un nom identifiable |
+| 18 | Le HPA : seuil CPU, min et max de replicas |
+| 19 | La ClusterPolicy Kyverno |
+| 20 | Le refus d'un pod en `:latest` par Kyverno |
 
-```bash
-terraform init -reconfigure -backend-config="bucket=tfstate-ipssi-<ID_DE_VOTRE_COMPTE>"
-```
+## Chaine d'automatisation
 
-3. Renseigner `terraform.tfvars` (copie de `terraform.tfvars.example`) avec son
-   ARN de LabRole, son URL ECR et le nom de son contexte kubectl.
+| # | Ce que la capture doit montrer |
+|---|---|
+| 21 | Le pipeline Jenkins, etapes et resultat |
 
-4. Construire et publier l'image, puis la charger dans son cluster :
+## Remarques
 
-```bash
-docker build -t boutique:v8.1.0 . && docker tag boutique:v8.1.0 <SON_ECR>/boutique:v8.1.0 && docker push <SON_ECR>/boutique:v8.1.0
-```
+Le nom du cluster Minikube doit etre parlant, pour que le correcteur distingue
+les deux stacks sur les captures.
 
-```bash
-minikube image load web-ipssi:v8.1.0 -p <SON_PROFIL>
-```
+La ClusterPolicy Kyverno est une ressource personnalisee et non namespacee :
+dans Freelens elle se trouve sous **Custom Resources > kyverno.io > ClusterPolicy**,
+et le filtre de namespace doit etre sur tous les namespaces.
 
-## Liste des captures
-
-| # | Fichier | Contenu |
-|---|---|---|
-| 01 | `01-app-ecs-alb.png` | L'application servie par l'ALB |
-| 02 | `02-console-aws-ecs-service.png` | Le service ECS, tasks running |
-| 03 | `03-task-definition.png` | La task definition, execution role LabRole |
-| 04 | `04-alb-target-group-healthy.png` | Les cibles du target group en healthy |
-| 05 | `05-security-group-taches.png` | La regle entrante limitee au SG de l'ALB |
-| 06 | `06-ecr-tag-immutable.png` | Le depot ECR en mode immutable |
-| 07 | `07-ecr-images-versions.png` | Les images publiees et leurs tags |
-| 08 | `08-cloudwatch-logs.png` | Le groupe de logs de l'application |
-| 09 | `09-app-kubernetes-ingress.png` | L'application servie par l'Ingress |
-| 10 | `10-k8s-deployments.png` | Les Deployments du namespace |
-| 11 | `11-k8s-pods.png` | Les pods, leur noeud et leur image |
-| 12 | `12-k8s-services.png` | Les Services |
-| 13 | `13-k8s-ingress.png` | L'Ingress et son hote |
-| 14 | `14-k8s-configmap.png` | La ConfigMap |
-| 15 | `15-k8s-secret.png` | Le Secret de la base |
-| 16 | `16-k8s-pvc.png` | La PVC liee a son volume |
-| 17 | `17-k8s-node.png` | Le noeud du cluster |
-| 18 | `18-k8s-hpa.png` | Le HPA et ses seuils |
-| 19 | `19-k8s-kyverno-policy.png` | La ClusterPolicy Kyverno |
-| 20 | `20-kyverno-refus.png` | Le refus d'un pod en `:latest` |
-| 21 | `21-jenkins-pipeline.png` | Le pipeline Jenkins complet |
-
-Pour la 20 :
+Pour la capture 20 :
 
 ```bash
-kubectl run test-latest --image=nginx:latest -n boutique
+kubectl run test-latest --image=nginx:latest -n <SON_NAMESPACE>
 ```
