@@ -1,0 +1,28 @@
+# Etat Terraform : contient en clair les valeurs des ressources creees
+terraform.tfstate
+terraform.tfstate.*
+*.tfstate
+*.tfstate.backup
+
+# Plans binaires et leur rendu
+tfplan
+tfplan.txt
+*.tfplan
+
+# Repertoire de travail du provider
+.terraform/
+.terraform.lock.hcl
+
+# Variables locales : peuvent contenir des identifiants
+*.tfvars
+!*.tfvars.example
+
+# Identifiants
+.env
+credentials
+*.pem
+*.key
+
+# Divers
+.DS_Store
+*.log

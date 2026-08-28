@@ -1,0 +1,16 @@
+# Copier en terraform.tfvars et adapter. Ce fichier n'est PAS versionne
+# (voir .gitignore) : il peut contenir des valeurs propres a votre compte.
+
+# ARN du LabRole de VOTRE session AWS Academy (varie a chaque compte).
+# Le recuperer avec :  aws iam get-role --role-name LabRole --query Role.Arn --output text
+lab_role_arn = "arn:aws:iam::000000000000:role/LabRole"
+
+# Contexte kubectl du cluster Minikube
+kube_context = "eval"
+
+# Image applicative : toujours un tag explicite, jamais latest
+image = "nginxdemos/hello:plain-text"
+
+# Dimensionnement
+ecs_desired_count = 2
+k8s_replicas      = 3
