@@ -52,7 +52,7 @@ variable "kube_config_path" {
 variable "kube_context" {
   description = "Contexte kubectl cible"
   type        = string
-  default     = "eval"
+  default     = "projet-ipssi"
 }
 
 variable "k8s_replicas" {
