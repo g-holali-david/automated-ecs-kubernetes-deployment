@@ -54,7 +54,9 @@ validation du plan.
 │   ├── ecs/                    ECR, cluster Fargate, task definition, ALB, SG
 │   └── k8s/                    Namespace, ConfigMap, Deployment, Service, Ingress, HPA
 ├── scripts/                    accès au cluster Minikube depuis Jenkins
-└── docs/                       schéma d'architecture et rapport
+└── docs/
+    ├── captures-stack-david/   captures du déploiement de Holali David GAVI
+    └── captures-stack-daniele/ captures du déploiement de Claire Danièle EBA
 ```
 
 ## Prérequis
@@ -100,6 +102,23 @@ L'ARN obtenu est à reporter dans `terraform.tfvars`.
 L'état Terraform est stocké sur S3 (`backend.tf`), ce qui permet au poste de travail et
 à Jenkins de travailler sur le même état. Le bucket est versionné et chiffré, et son
 accès public est bloqué.
+
+### Déployer depuis un autre compte AWS Academy
+
+Le bucket d'état et le dépôt ECR déclarés par défaut appartiennent à un seul compte et ne
+sont pas accessibles depuis un autre. Chaque membre du binôme déploie donc sur les siens :
+
+```bash
+aws s3api create-bucket --bucket tfstate-ipssi-<ID_DU_COMPTE> --region us-east-1
+```
+
+```bash
+terraform init -reconfigure -backend-config="bucket=tfstate-ipssi-<ID_DU_COMPTE>"
+```
+
+`image_ecs`, `lab_role_arn` et `kube_context` sont ensuite à renseigner dans
+`terraform.tfvars`. Chacun dispose ainsi de son propre état et de son propre déploiement,
+à partir du même code.
 
 ## Exécution manuelle
 

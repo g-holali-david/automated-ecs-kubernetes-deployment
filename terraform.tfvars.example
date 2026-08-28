@@ -1,15 +1,18 @@
-# Copier en terraform.tfvars et adapter. Ce fichier n'est PAS versionne
-# (voir .gitignore) : il peut contenir des valeurs propres a votre compte.
+# Copier en terraform.tfvars et adapter. Ce fichier n'est PAS versionne :
+# les valeurs dependent du compte AWS Academy et du poste de chacun.
 
-# ARN du LabRole de VOTRE session AWS Academy (varie a chaque compte).
-# Le recuperer avec :  aws iam get-role --role-name LabRole --query Role.Arn --output text
+# ARN du LabRole de VOTRE session Academy, il change a chaque compte.
+# aws iam get-role --role-name LabRole --query Role.Arn --output text
 lab_role_arn = "arn:aws:iam::000000000000:role/LabRole"
 
-# Contexte kubectl du cluster Minikube
-kube_context = "eval"
+# Depot ECR de VOTRE compte. Toujours un tag explicite, jamais latest.
+image_ecs = "000000000000.dkr.ecr.us-east-1.amazonaws.com/boutique:v8.1.0"
 
-# Image applicative : toujours un tag explicite, jamais latest
-image = "nginxdemos/hello:plain-text"
+# Image chargee dans Minikube via "minikube image load"
+image_k8s = "web-ipssi:v8.1.0"
+
+# Contexte kubectl de VOTRE cluster Minikube
+kube_context = "projet-ipssi"
 
 # Dimensionnement
 ecs_desired_count = 2
