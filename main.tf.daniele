@@ -1,0 +1,7 @@
+module "k8s" {
+  source = "./modules/k8s"
+}
+
+module "ecs" {
+  source = "./modules/ecs"
+}
