@@ -6,10 +6,20 @@ variable "projet" {
   default     = "boutique"
 }
 
-variable "image" {
-  description = "Image applicative, taguee explicitement (jamais latest)"
+# La reference d'image differe par cible : ECS tire depuis ECR, tandis que
+# Minikube ne peut pas s'authentifier aupres d'ECR sans imagePullSecret.
+# L'image y est donc chargee localement (minikube image load).
+
+variable "image_ecs" {
+  description = "Image applicative pour ECS (depot ECR, tag explicite)"
   type        = string
-  default     = "nginxdemos/hello:plain-text"
+  default     = "674501463174.dkr.ecr.us-east-1.amazonaws.com/boutique:v7.0.0"
+}
+
+variable "image_k8s" {
+  description = "Image applicative pour Kubernetes, chargee via minikube image load"
+  type        = string
+  default     = "web-ipssi:v7.0.0"
 }
 
 # Variable pour le déploiement ECS

@@ -22,7 +22,7 @@ variable "desired_count" {
 variable "container_port" {
   description = "Port ecoute par le conteneur"
   type        = number
-  default     = 80
+  default     = 8080
 }
 
 variable "cpu" {

@@ -41,3 +41,27 @@ variable "kyverno_active" {
   type        = bool
   default     = true
 }
+
+variable "image_db" {
+  description = "Image PostgreSQL"
+  type        = string
+  default     = "postgres:16-alpine"
+}
+
+variable "db_name" {
+  description = "Nom de la base"
+  type        = string
+  default     = "webipssi"
+}
+
+variable "db_user" {
+  description = "Utilisateur de la base"
+  type        = string
+  default     = "postgres"
+}
+
+variable "app_port" {
+  description = "Port ecoute par l'application dans le conteneur"
+  type        = number
+  default     = 8080
+}

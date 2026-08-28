@@ -82,7 +82,11 @@ resource "aws_lb" "app" {
 }
 
 resource "aws_lb_target_group" "app" {
-  name        = "${var.projet}-tg"
+  # name_prefix plutot que name : un changement de port force le remplacement du
+  # target group, or l'ancien ne peut pas etre supprime tant que le listener le
+  # reference. On cree donc le nouveau avant de detruire l'ancien, ce qui impose
+  # un nom genere (deux target groups ne peuvent pas porter le meme nom).
+  name_prefix = "btq-"
   port        = var.container_port
   protocol    = "HTTP"
   vpc_id      = data.aws_vpc.default.id
@@ -94,6 +98,10 @@ resource "aws_lb_target_group" "app" {
     unhealthy_threshold = 3
     interval            = 15
     timeout             = 5
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -147,6 +155,17 @@ resource "aws_ecs_task_definition" "app" {
           containerPort = var.container_port
           protocol      = "tcp"
         }
+      ]
+
+      # Aucune base n'est fournie sur cette cible : l'application demarre
+      # en mode degrade (consultation seule, sans comptes ni taches).
+      environment = [
+        { name = "APP_ENV", value = "production" },
+        { name = "APP_CIBLE", value = "ecs" },
+        { name = "TP_NAME", value = "PROJET" },
+        { name = "TP_TITRE", value = "Orchestration automatisee : ECS et Kubernetes" },
+        { name = "TP_OBJECTIF", value = "Deployer la meme application sur deux orchestrateurs et industrialiser leur deploiement via une chaine unique Terraform + Jenkins." },
+        { name = "TP_CONCERNE", value = "Cible ECS Fargate : taches derriere un ALB, execution role LabRole, Security Group n'autorisant que l'ALB. Sans base de donnees, l'application tourne en mode degrade." },
       ]
 
       logConfiguration = {

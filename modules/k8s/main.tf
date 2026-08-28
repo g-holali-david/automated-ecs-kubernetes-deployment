@@ -23,6 +23,18 @@ resource "kubernetes_config_map_v1" "app" {
     APP_ENV   = "production"
     APP_NOM   = "Boutique IPSSI"
     APP_CIBLE = "kubernetes"
+
+    # Contexte affiche par l'application
+    TP_NAME     = "PROJET"
+    TP_TITRE    = "Orchestration automatisee : ECS et Kubernetes"
+    TP_OBJECTIF = "Deployer la meme application sur deux orchestrateurs et industrialiser leur deploiement via une chaine unique Terraform + Jenkins."
+    TP_CONCERNE = "Cible Kubernetes : Deployment multi-replicas avec ConfigMap, Service, Ingress, HPA et garde-fou Kyverno. La base PostgreSQL du namespace permet le mode complet (comptes, sessions partagees, taches)."
+
+    # Coordonnees de la base : le mot de passe vient du Secret, pas d'ici.
+    PGHOST     = kubernetes_service_v1.db.metadata[0].name
+    PGPORT     = "5432"
+    PGUSER     = var.db_user
+    PGDATABASE = var.db_name
   }
 }
 
@@ -60,12 +72,60 @@ resource "kubernetes_deployment_v1" "app" {
           image = var.image
 
           port {
-            container_port = 80
+            container_port = var.app_port
           }
 
           env_from {
             config_map_ref {
               name = kubernetes_config_map_v1.app.metadata[0].name
+            }
+          }
+
+          # Le mot de passe vient du Secret, jamais du ConfigMap
+          env {
+            name = "PGPASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.db.metadata[0].name
+                key  = "PGPASSWORD"
+              }
+            }
+          }
+
+          # API Downward : metadonnees que seul Kubernetes connait au demarrage
+          env {
+            name = "POD_NAME"
+            value_from {
+              field_ref {
+                field_path = "metadata.name"
+              }
+            }
+          }
+
+          env {
+            name = "POD_NAMESPACE"
+            value_from {
+              field_ref {
+                field_path = "metadata.namespace"
+              }
+            }
+          }
+
+          env {
+            name = "NODE_NAME"
+            value_from {
+              field_ref {
+                field_path = "spec.nodeName"
+              }
+            }
+          }
+
+          env {
+            name = "POD_IP"
+            value_from {
+              field_ref {
+                field_path = "status.podIP"
+              }
             }
           }
 
@@ -82,7 +142,7 @@ resource "kubernetes_deployment_v1" "app" {
           readiness_probe {
             http_get {
               path = "/"
-              port = 80
+              port = var.app_port
             }
             initial_delay_seconds = 3
             period_seconds        = 5
@@ -92,7 +152,7 @@ resource "kubernetes_deployment_v1" "app" {
           liveness_probe {
             http_get {
               path = "/"
-              port = 80
+              port = var.app_port
             }
             initial_delay_seconds = 10
             period_seconds        = 10
@@ -127,7 +187,7 @@ resource "kubernetes_service_v1" "app" {
 
     port {
       port        = 80
-      target_port = 80
+      target_port = var.app_port
     }
   }
 }
