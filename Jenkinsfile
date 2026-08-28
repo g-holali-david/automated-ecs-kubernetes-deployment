@@ -32,7 +32,7 @@ pipeline {
 
     stage("Plan") {
       steps {
-        // Un seul plan couvrant les DEUX cibles (modules ecs et k8s)
+        // Un seul plan pour les deux modules
         sh "terraform plan -out=tfplan -input=false"
         sh "terraform show -no-color tfplan > tfplan.txt"
       }
@@ -40,7 +40,7 @@ pipeline {
 
     stage("Approve") {
       steps {
-        // Le pipeline s'arrete ici : aucun apply sans relecture humaine du plan
+        // Pas d apply sans validation manuelle du plan
         input message: "Appliquer ECS + Kubernetes ?", ok: "Appliquer"
       }
     }

@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
+# Donne a Jenkins (dans WSL) l'acces au cluster Minikube heberge cote Windows.
+# A relancer apres chaque "minikube start" : le port de l'API change a chaque fois.
 #
-# Donne a Jenkins (execute dans WSL) l'acces au cluster Minikube heberge par
-# Docker Desktop cote Windows.
-#
-# A relancer apres chaque "minikube start" : Minikube publie l'API sur un port
-# localhost tire au hasard, reattribue a chaque demarrage. Le kubeconfig Windows
-# est mis a jour automatiquement, ceux de WSL et de l'utilisateur jenkins non.
-#
-# Usage (en root) :  sudo bash scripts/refresh-kubeconfig.sh [profil]
+# Usage : sudo bash scripts/refresh-kubeconfig.sh [profil]
 set -euo pipefail
 
 PROFIL="${1:-projet-ipssi}"
@@ -45,8 +40,7 @@ for home in /home/*; do
   chmod 600 "$home/.kube/config"
 done
 
-# 3) Jenkins : les certificats sont copies dans son home, les permissions du
-#    montage /mnt/c n'etant pas garanties pour un compte de service.
+# 3) Jenkins : certificats copies dans son home, il ne lit pas /mnt/c de facon fiable
 mkdir -p "$JENKINS_HOME/.kube" "$JENKINS_HOME/.minikube/profiles/$PROFIL"
 cp "$WIN_MINIKUBE/ca.crt"                          "$JENKINS_HOME/.minikube/ca.crt"
 cp "$WIN_MINIKUBE/profiles/$PROFIL/client.crt"     "$JENKINS_HOME/.minikube/profiles/$PROFIL/client.crt"

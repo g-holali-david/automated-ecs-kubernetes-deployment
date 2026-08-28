@@ -1,16 +1,11 @@
-# Base de donnees de la cible Kubernetes.
-#
-# L'application demarre sans base (mode degrade), mais la cible Kubernetes
-# fournit PostgreSQL pour la faire tourner en mode complet : comptes,
-# sessions partagees entre replicas et gestionnaire de taches.
+# PostgreSQL pour la cible Kubernetes : permet le mode complet de l application.
 
 resource "random_password" "db" {
   length  = 24
   special = false
 }
 
-# Le mot de passe est genere puis stocke dans un Secret : il n'apparait
-# jamais dans le code versionne.
+# Mot de passe genere, jamais ecrit dans le code.
 resource "kubernetes_secret_v1" "db" {
   metadata {
     name      = "${var.projet}-db"
@@ -40,7 +35,7 @@ resource "kubernetes_persistent_volume_claim_v1" "db" {
     }
   }
 
-  # Le PVC reste Pending tant qu'aucun pod ne le monte : on n'attend pas la liaison.
+  # Reste Pending tant qu aucun pod ne le monte.
   wait_until_bound = false
 }
 
@@ -57,8 +52,7 @@ resource "kubernetes_deployment_v1" "db" {
       match_labels = { app = "${var.projet}-db" }
     }
 
-    # Un seul pod peut monter le volume ReadWriteOnce : on arrete l'ancien
-    # avant de demarrer le nouveau.
+    # Volume ReadWriteOnce : un seul pod a la fois.
     strategy {
       type = "Recreate"
     }
@@ -107,8 +101,7 @@ resource "kubernetes_deployment_v1" "db" {
             }
           }
 
-          # Sous-repertoire impose : le point de montage contient lost+found,
-          # ce que l'initialisation de PostgreSQL refuse.
+          # Sous-repertoire : le point de montage contient lost+found.
           env {
             name  = "PGDATA"
             value = "/var/lib/postgresql/data/pgdata"

@@ -30,7 +30,7 @@ resource "kubernetes_config_map_v1" "app" {
     TP_OBJECTIF = "Deployer la meme application sur deux orchestrateurs et industrialiser leur deploiement via une chaine unique Terraform + Jenkins."
     TP_CONCERNE = "Cible Kubernetes : Deployment multi-replicas avec ConfigMap, Service, Ingress, HPA et garde-fou Kyverno. La base PostgreSQL du namespace permet le mode complet (comptes, sessions partagees, taches)."
 
-    # Coordonnees de la base : le mot de passe vient du Secret, pas d'ici.
+    # Le mot de passe est dans le Secret, pas ici.
     PGHOST     = kubernetes_service_v1.db.metadata[0].name
     PGPORT     = "5432"
     PGUSER     = var.db_user
@@ -92,7 +92,7 @@ resource "kubernetes_deployment_v1" "app" {
             }
           }
 
-          # API Downward : metadonnees que seul Kubernetes connait au demarrage
+          # API Downward
           env {
             name = "POD_NAME"
             value_from {
@@ -129,7 +129,7 @@ resource "kubernetes_deployment_v1" "app" {
             }
           }
 
-          # Laisse le temps au Service de retirer le pod avant l'arret
+          # Laisse le Service retirer le pod avant l arret
           lifecycle {
             pre_stop {
               exec {
@@ -138,7 +138,7 @@ resource "kubernetes_deployment_v1" "app" {
             }
           }
 
-          # Retire le pod du Service tant qu'il n'est pas pret
+          # Retire le pod du Service tant qu il n est pas pret
           readiness_probe {
             http_get {
               path = "/"
@@ -158,7 +158,7 @@ resource "kubernetes_deployment_v1" "app" {
             period_seconds        = 10
           }
 
-          # requests = base de calcul du HPA, limits = plafond
+          # requests : base de calcul du HPA
           resources {
             requests = {
               cpu    = "50m"
@@ -252,9 +252,9 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "app" {
 
     behavior {
       scale_down {
-        # Reduit de 300s a 30s pour rendre la descente observable en demonstration
+        # 30s au lieu de 300s par defaut, pour voir la descente pendant la demo
         stabilization_window_seconds = 30
-        # Obligatoire des qu'une policy est declaree
+        # Obligatoire quand une policy est declaree
         select_policy = "Max"
         policy {
           type           = "Percent"

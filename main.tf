@@ -1,5 +1,4 @@
-# Une meme application, deux orchestrateurs, un seul etat Terraform.
-# Le pipeline Jenkins applique les deux cibles en une passe.
+# Les deux cibles sont declarees dans le meme etat Terraform.
 
 module "ecs" {
   source = "./modules/ecs"

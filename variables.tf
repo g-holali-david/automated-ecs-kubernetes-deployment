@@ -6,9 +6,8 @@ variable "projet" {
   default     = "boutique"
 }
 
-# La reference d'image differe par cible : ECS tire depuis ECR, tandis que
-# Minikube ne peut pas s'authentifier aupres d'ECR sans imagePullSecret.
-# L'image y est donc chargee localement (minikube image load).
+# ECS tire l'image depuis ECR. Minikube ne peut pas s'y authentifier sans
+# imagePullSecret, l'image y est donc chargee localement.
 
 variable "image_ecs" {
   description = "Image applicative pour ECS (depot ECR, tag explicite)"

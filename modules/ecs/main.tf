@@ -1,5 +1,4 @@
-# Reseau : on reutilise le VPC par defaut, AWS Academy n'autorisant pas
-# la creation d'une infrastructure reseau complete.
+# VPC par defaut : AWS Academy ne laisse pas creer de VPC.
 data "aws_vpc" "default" {
   default = true
 }
@@ -16,8 +15,7 @@ data "aws_subnets" "default" {
 resource "aws_ecr_repository" "app" {
   name = var.projet
 
-  # Un tag ne peut pas etre reecrit : garantit qu'une version deployee
-  # correspond toujours a la meme image.
+  # Un tag ne peut pas etre reecrit.
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
@@ -82,10 +80,8 @@ resource "aws_lb" "app" {
 }
 
 resource "aws_lb_target_group" "app" {
-  # name_prefix plutot que name : un changement de port force le remplacement du
-  # target group, or l'ancien ne peut pas etre supprime tant que le listener le
-  # reference. On cree donc le nouveau avant de detruire l'ancien, ce qui impose
-  # un nom genere (deux target groups ne peuvent pas porter le meme nom).
+  # name_prefix + create_before_destroy : le listener empeche de supprimer
+  # l ancien target group, il faut donc creer le nouveau avant.
   name_prefix = "btq-"
   port        = var.container_port
   protocol    = "HTTP"
@@ -157,8 +153,7 @@ resource "aws_ecs_task_definition" "app" {
         }
       ]
 
-      # Aucune base n'est fournie sur cette cible : l'application demarre
-      # en mode degrade (consultation seule, sans comptes ni taches).
+      # Pas de base sur cette cible : l application tourne en mode degrade.
       environment = [
         { name = "APP_ENV", value = "production" },
         { name = "APP_CIBLE", value = "ecs" },
@@ -201,7 +196,7 @@ resource "aws_ecs_service" "app" {
     container_port   = var.container_port
   }
 
-  # Annule et restaure automatiquement un deploiement qui echoue
+  # Rollback automatique si le deploiement echoue
   deployment_circuit_breaker {
     enable   = true
     rollback = true

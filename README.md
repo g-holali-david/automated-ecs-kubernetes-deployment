@@ -1,13 +1,11 @@
 # Orchestration automatisée : ECS et Kubernetes
 
-Déploiement d'une **même application** sur **deux orchestrateurs** — Amazon ECS (Fargate) et
-Kubernetes — pilotés par une **chaîne unique** Terraform + Jenkins.
+Déploiement de la même application sur deux orchestrateurs, Amazon ECS (Fargate) et
+Kubernetes, avec une seule chaîne Terraform + Jenkins.
 
-Projet IPSSI — Mastère Cybersécurité — Amazon AWS : ECS & EKS
+Projet IPSSI - Mastère Cybersécurité - Amazon AWS : ECS & EKS
 
-**Binôme :** Holali David GAVI · Claire Danièle EBA
-
----
+Binôme : Holali David GAVI, Claire Danièle EBA
 
 ## Architecture
 
@@ -17,7 +15,7 @@ Projet IPSSI — Mastère Cybersécurité — Amazon AWS : ECS & EKS
                       └──────┬───────┘
                              │ checkout
                       ┌──────▼───────┐
-                      │   Jenkins    │  validate → plan → APPROBATION → apply
+                      │   Jenkins    │  validate > plan > approbation > apply
                       └──────┬───────┘
                              │ pilote
                       ┌──────▼───────┐
@@ -26,28 +24,26 @@ Projet IPSSI — Mastère Cybersécurité — Amazon AWS : ECS & EKS
                 provider  │      │  provider
                    aws    │      │  kubernetes
               ┌───────────▼┐    ┌▼─────────────┐
-              │  Amazon ECS │    │  Kubernetes  │
-              │  (Fargate)  │    │  (Minikube)  │
-              ├─────────────┤    ├──────────────┤
-              │ ECR         │    │ Namespace    │
-              │ Cluster     │    │ ConfigMap    │
-              │ TaskDef     │    │ Deployment   │
-              │ Service     │    │ Service      │
-              │ ALB + SG    │    │ Ingress      │
-              │             │    │ HPA          │
-              └─────────────┘    └──────────────┘
+              │ Amazon ECS │    │  Kubernetes  │
+              │  (Fargate) │    │  (Minikube)  │
+              ├────────────┤    ├──────────────┤
+              │ ECR        │    │ Namespace    │
+              │ Cluster    │    │ ConfigMap    │
+              │ TaskDef    │    │ Deployment   │
+              │ Service    │    │ Service      │
+              │ ALB + SG   │    │ Ingress      │
+              │            │    │ HPA          │
+              └────────────┘    └──────────────┘
 ```
 
-Une seule commande `terraform apply` déploie les deux cibles ; le pipeline Jenkins
-l'exécute après validation humaine du plan.
-
----
+Un `terraform apply` déploie les deux cibles. Le pipeline Jenkins l'exécute après
+validation du plan.
 
 ## Structure du dépôt
 
 ```
 .
-├── Jenkinsfile                 pipeline unique pilotant les deux cibles
+├── Jenkinsfile                 pipeline pilotant les deux cibles
 ├── providers.tf                providers aws + kubernetes
 ├── main.tf                     appelle les modules ecs et k8s
 ├── variables.tf                variables communes et par cible
@@ -56,51 +52,49 @@ l'exécute après validation humaine du plan.
 ├── modules/
 │   ├── ecs/                    ECR, cluster Fargate, task definition, ALB, SG
 │   └── k8s/                    Namespace, ConfigMap, Deployment, Service, Ingress, HPA
+├── scripts/                    accès au cluster Minikube depuis Jenkins
 └── docs/                       schéma d'architecture et rapport
 ```
-
----
 
 ## Prérequis
 
 | Outil | Rôle |
 |---|---|
-| Terraform ≥ 1.5 | décrit et applique les deux cibles |
+| Terraform >= 1.5 | décrit et applique les deux cibles |
 | AWS CLI v2 | identifiants AWS Academy (`us-east-1`) |
 | kubectl + Minikube | cluster Kubernetes local |
-| Jenkins | orchestration du pipeline |
+| Jenkins | exécution du pipeline |
 | Docker | construction et publication de l'image |
 
-Le cluster Minikube doit tourner avec les addons requis :
+Démarrage du cluster :
 
 ```bash
-minikube start -p eval --driver=docker --cni=calico
-minikube addons enable ingress -p eval
-minikube addons enable metrics-server -p eval
+minikube start -p projet-ipssi --driver=docker --cni=calico
+minikube addons enable ingress -p projet-ipssi
+minikube addons enable metrics-server -p projet-ipssi
 ```
 
-> `metrics-server` est indispensable au HPA, `ingress` à l'exposition par nom d'hôte.
-> Calico est nécessaire si des NetworkPolicy sont ajoutées : le CNI par défaut de
-> Minikube les accepte sans les appliquer.
+`metrics-server` est nécessaire au HPA et `ingress` à l'exposition par nom d'hôte.
+Calico est utile si on ajoute des NetworkPolicy : le CNI par défaut de Minikube les
+accepte sans les appliquer.
 
----
+L'image de l'application est chargée dans le cluster :
+
+```bash
+minikube image load web-ipssi:v7.0.0 -p projet-ipssi
+```
 
 ## Configuration
 
-Les identifiants AWS Academy expirent à chaque session : ils ne sont **jamais** versionnés.
-Les renseigner via l'environnement ou `aws configure`.
+Les identifiants AWS Academy expirent à chaque session et ne sont pas versionnés.
+Ils sont fournis par l'environnement ou par `aws configure`.
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars
-```
-
-Puis renseigner l'ARN du LabRole de votre compte :
-
-```bash
 aws iam get-role --role-name LabRole --query Role.Arn --output text
 ```
 
----
+L'ARN obtenu est à reporter dans `terraform.tfvars`.
 
 ## Exécution manuelle
 
@@ -109,8 +103,6 @@ terraform init
 terraform plan -out=tfplan
 terraform apply tfplan
 ```
-
-Résultat :
 
 ```bash
 terraform output ecs_url    # http://<alb>.us-east-1.elb.amazonaws.com
@@ -123,34 +115,38 @@ Destruction :
 terraform destroy
 ```
 
----
-
 ## Exécution par le pipeline
 
-Job Jenkins de type **Pipeline** → *Pipeline script from SCM* → Git → ce dépôt →
-branche `*/main` → Script Path `Jenkinsfile`.
+Job Jenkins de type Pipeline, "Pipeline script from SCM", Git vers ce dépôt,
+branche `*/main`, Script Path `Jenkinsfile`.
 
 | Étape | Rôle |
 |---|---|
 | Checkout | récupère le code versionné |
 | Init | `terraform init` |
-| Validate | `terraform fmt -check -recursive` + `terraform validate` |
-| Plan | un plan couvrant **les deux** cibles, archivé comme artefact |
-| **Approve** | **le pipeline s'arrête** — aucun apply sans relecture humaine |
+| Validate | `terraform fmt -check -recursive` et `terraform validate` |
+| Plan | un plan couvrant les deux cibles, archivé comme artefact |
+| Approve | le pipeline attend une validation avant d'appliquer |
 | Apply | applique le plan validé |
 | Verify | interroge ECS et Kubernetes en parallèle |
 
----
+Jenkins tournant dans WSL, il faut lui donner l'accès au cluster après chaque
+démarrage de Minikube, car le port de l'API change :
+
+```bash
+sudo bash scripts/refresh-kubeconfig.sh projet-ipssi
+```
 
 ## Sécurité
 
-- **Moindre privilège** : `LabRole` en execution role côté ECS (AWS Academy interdit la
-  création de rôles) ; le Security Group des tâches n'accepte **que** le trafic de l'ALB,
-  jamais Internet directement.
-- **Aucun secret en dur** : identifiants AWS hors dépôt, `terraform.tfvars` ignoré par Git,
-  `terraform.tfstate` exclu (il contient en clair les valeurs des ressources).
-- **Images taguées** : jamais `latest`. Le dépôt ECR est en `IMMUTABLE` — un tag publié ne
-  peut plus être écrasé — avec scan de vulnérabilités à chaque push.
+- Moindre privilège : `LabRole` comme execution role côté ECS, AWS Academy interdisant
+  la création de rôles. Le Security Group des tâches n'accepte que le trafic venant de
+  l'ALB, pas Internet.
+- Pas de secret en dur : identifiants AWS hors dépôt, `terraform.tfvars` et
+  `terraform.tfstate` ignorés par Git. Le mot de passe PostgreSQL est généré par
+  Terraform et stocké dans un Secret Kubernetes.
+- Images taguées : jamais `latest`. Le dépôt ECR est en mode `IMMUTABLE` avec scan de
+  vulnérabilités au push, et une ClusterPolicy Kyverno refuse les pods sans tag explicite.
 
 ## Résilience
 
@@ -159,20 +155,16 @@ branche `*/main` → Script Path `Jenkinsfile`.
 | Réplicas | `desired_count = 2` | `replicas = 3` |
 | Auto-réparation | scheduler ECS | ReplicaSet |
 | Sondes | health check ALB | readiness + liveness |
-| Zéro coupure | `minimum_healthy_percent = 100` | `maxUnavailable: 0` + hook `preStop` |
+| Zéro coupure | `minimum_healthy_percent = 100` | `maxUnavailable: 0` et hook `preStop` |
 | Rollback auto | deployment circuit breaker | `kubectl rollout undo` |
-| Mise à l'échelle | `desired_count` | HPA sur le CPU (3 → 8) |
-
----
+| Mise à l'échelle | `desired_count` | HPA sur le CPU (3 à 8) |
 
 ## Répartition du binôme
 
-À compléter avant le rendu — chacun doit savoir expliquer l'ensemble.
-
 | Partie | Responsable |
 |---|---|
-| Cadrage & architecture | |
+| Cadrage et architecture | |
 | Module ECS | |
 | Module Kubernetes | |
 | Pipeline Jenkins | |
-| Rapport & démonstration | |
+| Rapport et démonstration | |
