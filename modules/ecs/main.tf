@@ -30,7 +30,7 @@ resource "aws_ecr_repository" "app" {
 # L'ALB est le seul point d'entree public
 resource "aws_security_group" "alb" {
   name        = "${var.projet}-alb-sg"
-  description = "Entree HTTP publique vers l'ALB"
+  description = "Entree HTTP publique vers ALB"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
@@ -52,11 +52,11 @@ resource "aws_security_group" "alb" {
 # Les taches n'acceptent QUE le trafic venant de l'ALB, jamais d'Internet
 resource "aws_security_group" "tasks" {
   name        = "${var.projet}-tasks-sg"
-  description = "Trafic autorise uniquement depuis l'ALB"
+  description = "Trafic autorise uniquement depuis ALB"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    description     = "Depuis l'ALB uniquement"
+    description     = "Depuis ALB uniquement"
     from_port       = var.container_port
     to_port         = var.container_port
     protocol        = "tcp"

@@ -12,7 +12,7 @@ variable "image" {
   default     = "nginxdemos/hello:plain-text"
 }
 
-# ---------- Cible ECS ----------
+# Variable pour le déploiement ECS
 
 variable "aws_region" {
   description = "Region AWS (us-east-1 impose par AWS Academy)"
@@ -31,7 +31,7 @@ variable "ecs_desired_count" {
   default     = 2
 }
 
-# ---------- Cible Kubernetes ----------
+# Variables pour le deploiement Kubernetes 
 
 variable "kube_config_path" {
   description = "Chemin du kubeconfig"
