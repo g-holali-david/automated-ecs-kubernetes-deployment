@@ -30,8 +30,9 @@ Nous avons traduit ce besoin en quatre exigences :
 
 Nous réutilisons l'application développée pendant les TP précédents, une application Node.js
 avec Express nommée Boutique IPSSI. Elle propose la création de compte, la connexion et un
-gestionnaire de tâches persisté en PostgreSQL. Le projet ne demande pas le déploiement d'une base de donné. nous l'avons fait juste pour apprendre encore plus. L'application affiche aussi le contexte d'exécution :
-le namespace, le nom du pod et le nœud qui répond.
+gestionnaire de tâches persisté en PostgreSQL. Le projet ne demande pas le déploiement d'une base
+de données. Nous l'avons fait uniquement pour aller plus loin dans l'apprentissage. L'application
+affiche aussi le contexte d'exécution : le namespace, le nom du pod et le nœud qui répond.
 
 Ce dernier point n'est pas cosmétique. Il permet de prouver visuellement sur quelle cible on se
 trouve et, sur Kubernetes, de constater la répartition entre les réplicas en rechargeant la page.
@@ -130,9 +131,12 @@ référence. Le déploiement se bloquait.
 
 ### 3.3 Absence de base de données sur ECS
 
-Le projet ne demande pas dle deploiément d'une base de donnée. Nous l'avons déployé uniment sur notre stack kubernetes parce que l'application qud nous avons déployé le permet (car ce n'est pas obligatoire).
-Nous l'avons donc pas déployé sur ECS. RDS aurait dépassé le périmètre du projet, et
-un conteneur PostgreSQL dans la même tâche aurait perdu ses données à chaque redémarrage, ce qui
+Le projet ne demande pas le déploiement d'une base de données. Nous l'avons déployée uniquement sur
+notre stack Kubernetes, parce que l'application que nous avons choisie le permet sans que ce soit
+obligatoire.
+
+Nous ne l'avons donc pas déployée sur ECS. RDS aurait dépassé le périmètre du projet, et un
+conteneur PostgreSQL dans la même tâche aurait perdu ses données à chaque redémarrage, ce qui
 n'aurait rien démontré.
 
 Nous avons plutôt rendu la base optionnelle dans l'application. Sans base joignable, elle démarre
@@ -432,16 +436,25 @@ porté par l'agent.
 
 ## 12. Répartition du binôme
 
-Chacun a déployé la stack complète de son côté, sur son propre compte AWS Academy et son propre
-cluster, et sait expliquer l'ensemble de la chaîne.
+Chacun a écrit sa part du code, puis déployé et exploité sa propre stack, sur son compte AWS
+Academy et son cluster Minikube. Les deux membres savent expliquer l'ensemble de la chaîne.
 
-| Partie | Responsable |
-|---|---|
-| Cadrage et architecture | |
-| Module ECS | |
-| Module Kubernetes | |
-| Pipeline Jenkins | |
-| Rapport et démonstration | |
+| Tâche | Holali David GAVI | Claire Danièle EBA |
+|---|---|---|
+| Cadrage du besoin | Rédaction | Relecture |
+| Schéma d'architecture | Relecture | Rédaction |
+| Module Terraform `ecs` | Relecture | Rédaction |
+| Module Terraform `k8s` | Rédaction | Relecture |
+| Scripts d'exploitation AWS | | Rédaction |
+| Scripts d'exploitation Kubernetes | Rédaction | |
+| Pipeline Jenkins | Version écrite puis comparée | Version écrite puis comparée |
+| Rapport écrit | Rédaction | Relecture |
+| Déploiement et captures | Sa propre stack | Sa propre stack |
+| Démonstration | Ses deux cibles | Ses deux cibles |
+
+Chacun a écrit son propre `Jenkinsfile`. Nous les avons comparés, puis retenu une seule version
+pour le dépôt commun, celle dont l'étape de vérification interrogeait les deux cibles en
+parallèle. Les deux membres savent en dérouler chaque étape.
 
 ---
 
