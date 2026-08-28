@@ -30,7 +30,7 @@ Nous avons traduit ce besoin en quatre exigences :
 
 Nous réutilisons l'application développée pendant les TP précédents, une application Node.js
 avec Express nommée Boutique IPSSI. Elle propose la création de compte, la connexion et un
-gestionnaire de tâches persisté en PostgreSQL. Elle affiche aussi le contexte d'exécution :
+gestionnaire de tâches persisté en PostgreSQL. Le projet ne demande pas le déploiement d'une base de donné. nous l'avons fait juste pour apprendre encore plus. L'application affiche aussi le contexte d'exécution :
 le namespace, le nom du pod et le nœud qui répond.
 
 Ce dernier point n'est pas cosmétique. Il permet de prouver visuellement sur quelle cible on se
@@ -87,8 +87,6 @@ Le code est organisé en deux modules, `modules/ecs` et `modules/k8s`, appelés 
 racine. Les variables communes, dont le nom du projet et les noms du binôme, sont déclarées une
 seule fois et transmises aux deux modules.
 
-Le projet représente 26 ressources et environ 1 000 lignes de Terraform.
-
 ---
 
 ## 3. Partie 2 : déploiement sur ECS
@@ -132,7 +130,8 @@ référence. Le déploiement se bloquait.
 
 ### 3.3 Absence de base de données sur ECS
 
-Nous n'avons pas déployé de base de données sur ECS. RDS aurait dépassé le périmètre du projet, et
+Le projet ne demande pas dle deploiément d'une base de donnée. Nous l'avons déployé uniment sur notre stack kubernetes parce que l'application qud nous avons déployé le permet (car ce n'est pas obligatoire).
+Nous l'avons donc pas déployé sur ECS. RDS aurait dépassé le périmètre du projet, et
 un conteneur PostgreSQL dans la même tâche aurait perdu ses données à chaque redémarrage, ce qui
 n'aurait rien démontré.
 
