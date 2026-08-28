@@ -6,6 +6,7 @@ terraform.tfstate.*
 
 # Plans binaires et leur rendu
 tfplan
+tfplan-*
 tfplan.txt
 *.tfplan
 
