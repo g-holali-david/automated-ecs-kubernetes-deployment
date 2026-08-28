@@ -1,0 +1,41 @@
+pipeline {
+  agent any
+  environment {
+    JAVA_HOME = "/usr/lib/jvm/java-21-openjdk-amd64"
+  }
+  stages {
+    stage("Init") {
+      steps {
+        dir("/home/kali/tp7/terraform") {
+          sh "terraform init -input=false"
+        }
+      }
+    }
+    stage("Validate") {
+      steps {
+        dir("/home/kali/tp7/terraform") {
+          sh "terraform validate"
+        }
+      }
+    }
+    stage("Plan") {
+      steps {
+        dir("/home/kali/tp7/terraform") {
+          sh "terraform plan -out=tfplan -input=false"
+        }
+      }
+    }
+    stage("Approve") {
+      steps {
+        input message: "Appliquer ECS + Kubernetes ?"
+      }
+    }
+    stage("Apply") {
+      steps {
+        dir("/home/kali/tp7/terraform") {
+          sh "terraform apply -input=false tfplan"
+        }
+      }
+    }
+  }
+}
