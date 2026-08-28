@@ -8,237 +8,168 @@
 
 ---
 
-## 1. Cadrage
+## 1. Cadrage et architecture
 
-### 1.1 Le besoin
-
-L'entreprise exploite une application conteneurisée sur deux plateformes. Amazon ECS sert la
-production cloud, Kubernetes assure la portabilité vers des environnements hors AWS. La demande
-n'est pas de choisir entre les deux mais d'industrialiser les deux déploiements avec une seule
-chaîne d'automatisation.
-
-Nous avons traduit ce besoin en quatre exigences :
+Une même application conteneurisée doit tourner sur ECS pour la production cloud et sur Kubernetes
+pour la portabilité, les deux déploiements étant industrialisés par une seule chaîne
+d'automatisation.
 
 | Exigence | Traduction technique |
 |---|---|
-| Charge | 2 tâches sur ECS, 3 réplicas sur Kubernetes avec montée automatique jusqu'à 8 |
-| Disponibilité | Aucune coupure pendant une mise à jour, redémarrage automatique d'une instance en échec |
+| Charge | 2 tâches sur ECS, 3 réplicas sur Kubernetes, montée automatique jusqu'à 8 |
+| Disponibilité | Aucune coupure en mise à jour, redémarrage automatique d'une instance en échec |
 | Sécurité | Moindre privilège réseau, aucun secret dans le dépôt, images à tag figé |
-| Coût | Fargate en 0,25 vCPU et 512 Mio, rétention des logs limitée à 7 jours |
+| Coût | Fargate en 0,25 vCPU et 512 Mio, rétention des logs à 7 jours |
 
-### 1.2 L'application déployée
+L'application est celle des TP précédents, en Node.js avec Express. Elle affiche son contexte
+d'exécution, ce qui permet de voir sur quelle cible on se trouve. Elle intègre une base PostgreSQL
+non demandée par le sujet, ajoutée pour aller plus loin, et démarre sans elle en mode dégradé.
 
-Nous réutilisons l'application développée pendant les TP précédents, une application Node.js
-avec Express nommée Boutique IPSSI. Elle propose la création de compte, la connexion et un
-gestionnaire de tâches persisté en PostgreSQL. Le projet ne demande pas le déploiement d'une base
-de données. Nous l'avons fait uniquement pour aller plus loin dans l'apprentissage. L'application
-affiche aussi le contexte d'exécution : le namespace, le nom du pod et le nœud qui répond.
+AWS Academy impose `us-east-1`, interdit la création de rôles IAM et fournit des identifiants
+temporaires. `LabRole` sert donc d'execution role. EKS étant indisponible pour la même raison, la
+cible Kubernetes est un cluster Minikube nommé `projet-ipssi`. Les ressources restent transposables
+vers EKS.
 
-Ce dernier point n'est pas cosmétique. Il permet de prouver visuellement sur quelle cible on se
-trouve et, sur Kubernetes, de constater la répartition entre les réplicas en rechargeant la page.
+```
+        ┌──────────┐   checkout   ┌───────────┐   pilote   ┌────────────┐
+        │   Git    │─────────────►│  Jenkins  │───────────►│ Terraform  │
+        └──────────┘              └───────────┘            └─────┬──────┘
+                        validate > plan > approbation      aws │ │ kubernetes
+                                  > apply > verify             │ │
+                        ┌──────────────────────────────────────┘ └───────┐
+                        ▼                                                ▼
+              ┌──────────────────┐                          ┌──────────────────┐
+              │   Amazon ECS     │                          │    Kubernetes    │
+              │    (Fargate)     │                          │    (Minikube)    │
+              ├──────────────────┤                          ├──────────────────┤
+              │ ECR, Cluster     │                          │ Namespace        │
+              │ TaskDef, Service │                          │ ConfigMap,Secret │
+              │ ALB + 2 SG       │                          │ Deployment, Svc  │
+              │ CloudWatch Logs  │                          │ Ingress, HPA     │
+              └──────────────────┘                          │ PVC, Kyverno     │
+                                                            └──────────────────┘
+                                   État Terraform partagé sur S3 (versionné, chiffré)
+```
 
-L'application démarre même sans base de données. Ce choix est expliqué en section 3.3.
-
-### 1.3 Contraintes d'environnement
-
-AWS Academy impose la région `us-east-1`, interdit la création de rôles IAM et fournit des
-identifiants de session temporaires. Le rôle `LabRole` est donc utilisé comme execution role des
-tâches ECS. EKS étant indisponible pour la même raison, la cible Kubernetes est un cluster
-Minikube local, nommé `projet-ipssi` pour être identifiable sur les captures. Les ressources
-Kubernetes décrites restent transposables vers EKS sans modification.
+Il n'y a **qu'un seul état Terraform** pour les deux cibles : un `terraform apply` unique les
+réconcilie. Le code tient en deux modules, `modules/ecs` et `modules/k8s`, soit 26 ressources.
 
 ---
 
-## 2. Architecture
+## 2. Déploiement sur ECS
 
-```
-                      ┌──────────────┐
-                      │     Git      │  code Terraform + Jenkinsfile
-                      └──────┬───────┘
-                             │ checkout
-                      ┌──────▼───────┐
-                      │   Jenkins    │  validate > plan > approbation > apply
-                      └──────┬───────┘
-                             │ pilote
-                      ┌──────▼───────┐        ┌──────────────┐
-                      │  Terraform   │───────►│  État sur S3 │
-                      └───┬──────┬───┘        │  versionné   │
-                provider  │      │  provider  │  chiffré     │
-                   aws    │      │  kubernetes└──────────────┘
-              ┌───────────▼┐    ┌▼─────────────┐
-              │ Amazon ECS │    │  Kubernetes  │
-              │  (Fargate) │    │  (Minikube)  │
-              ├────────────┤    ├──────────────┤
-              │ ECR        │    │ Namespace    │
-              │ Cluster    │    │ ConfigMap    │
-              │ TaskDef    │    │ Secret       │
-              │ Service    │    │ Deployment   │
-              │ ALB + SG   │    │ Service      │
-              │ CloudWatch │    │ Ingress      │
-              │            │    │ HPA + PVC    │
-              │            │    │ Kyverno      │
-              └────────────┘    └──────────────┘
-```
-
-Le point central de cette architecture est qu'il n'y a **qu'un seul état Terraform** pour les deux
-cibles. Un `terraform apply` unique réconcilie ECS et Kubernetes. Le pipeline Jenkins produit un
-plan couvrant les deux, le soumet à approbation, puis l'applique.
-
-Le code est organisé en deux modules, `modules/ecs` et `modules/k8s`, appelés depuis un `main.tf`
-racine. Les variables communes, dont le nom du projet et les noms du binôme, sont déclarées une
-seule fois et transmises aux deux modules.
-
----
-
-## 3. Partie 2 : déploiement sur ECS
-
-### 3.1 Ressources créées
-
-Le module `ecs` crée le dépôt ECR, le cluster Fargate, la task definition, le service, un
-Application Load Balancer avec son target group et son listener, deux Security Groups et un
-groupe de logs CloudWatch. Le VPC et les sous-réseaux par défaut sont récupérés par des data
-sources, AWS Academy n'autorisant pas la création d'une infrastructure réseau complète.
+Le module `ecs` crée le dépôt ECR, le cluster Fargate, la task definition, le service, un ALB avec
+son target group et son listener, deux Security Groups et un groupe de logs CloudWatch. Le VPC et
+les sous-réseaux par défaut sont récupérés par des data sources, AWS Academy interdisant la
+création d'un réseau complet. Le target group est en mode `ip`, seule valeur possible avec le mode
+réseau `awsvpc` de Fargate.
 
 ![Capture 02](captures-stack-david/02-console-aws-ecs-service.png)
 
-*Capture 02 : le service `boutique-svc` dans le cluster `boutique-cluster`, 2 tâches sur 2 en cours
-d'exécution, dernier déploiement terminé.*
+*Capture 02 : le service `boutique-svc`, 2 tâches sur 2 actives, déploiement terminé.*
 
 ![Capture 03](captures-stack-david/03-task-definition-boutique-4.png)
 
-*Capture 03 : la task definition `boutique:4`. L'execution role est bien `LabRole`, le mode réseau
-est `awsvpc` comme l'impose Fargate, et la taille est de 0,25 vCPU pour 512 Mio.*
+*Capture 03 : execution role `LabRole`, mode réseau `awsvpc`, 0,25 vCPU et 512 Mio.*
 
 ![Capture 01](captures-stack-david/01-app-ecs-alb.png)
 
 *Capture 01 : l'application répond sur l'URL publique de l'ALB.*
 
-### 3.2 Exposition et mise à l'échelle
-
-Le service est exposé par un ALB. Le target group est en mode `ip`, seule valeur possible avec le
-mode réseau `awsvpc` de Fargate. Le nombre de tâches est piloté par la variable
-`ecs_desired_count`, fixée à 2. Le scheduler ECS assure l'auto-réparation : si une tâche s'arrête,
-il en relance une pour revenir au compte souhaité.
+Le nombre de tâches est piloté par `ecs_desired_count`, fixée à 2. Le scheduler ECS relance
+automatiquement toute tâche arrêtée.
 
 ![Capture 04](captures-stack-david/04-alb-target-group-healthy.png)
 
-*Capture 04 : les 2 cibles enregistrées sont en `healthy`, sur le port 8080.*
+*Capture 04 : les 2 cibles enregistrées sont en `healthy` sur le port 8080.*
 
-Un détail a demandé une correction. Le target group porte un nom généré par `name_prefix` et non
-un nom fixe, avec `create_before_destroy`. Sans cela, tout changement de port force le
-remplacement du target group, et AWS refuse de supprimer l'ancien tant que le listener le
-référence. Le déploiement se bloquait.
+![Capture 08](captures-stack-david/08-cloudwatch-logs.png)
 
-### 3.3 Absence de base de données sur ECS
+*Capture 08 : le groupe de logs `/ecs/boutique`, un flux par tâche, rétention de 7 jours.*
 
-Le projet ne demande pas le déploiement d'une base de données. Nous l'avons déployée uniquement sur
-notre stack Kubernetes, parce que l'application que nous avons choisie le permet sans que ce soit
-obligatoire.
+**Pas de base de données sur cette cible.** Le sujet n'en demande pas. Nous en avons déployé une
+uniquement sur Kubernetes. Sur ECS, RDS aurait dépassé le périmètre et un conteneur PostgreSQL dans
+la même tâche aurait perdu ses données à chaque redémarrage. C'est **le même artefact** sur les
+deux cibles, même image et même tag : seule la configuration d'exécution diffère, ce qui est le
+rôle de la ConfigMap d'un côté et des variables de la task definition de l'autre.
 
-Nous ne l'avons donc pas déployée sur ECS. RDS aurait dépassé le périmètre du projet, et un
-conteneur PostgreSQL dans la même tâche aurait perdu ses données à chaque redémarrage, ce qui
-n'aurait rien démontré.
-
-Nous avons plutôt rendu la base optionnelle dans l'application. Sans base joignable, elle démarre
-en mode dégradé : les pages restent servies, un bandeau signale l'indisponibilité, et la création
-de compte est désactivée. Cela a une conséquence sur les sondes. La sonde de liveness interroge
-`/health`, qui répond toujours 200 tant que le processus tourne. La sonde de readiness interroge
-`/ready`, qui répond 503 sans base. Si la liveness avait dépendu de la base, une base absente
-aurait fait redémarrer l'application en boucle alors qu'elle servait encore des pages.
-
-La comparaison entre les captures 01 et 09 rend ce choix visible : même image, même page, le
-bandeau dégradé d'un côté et le mode complet de l'autre.
+Sans base, l'application démarre en mode dégradé. Les sondes sont séparées en conséquence : la
+liveness interroge `/health`, qui répond toujours 200 tant que le processus tourne, la readiness
+interroge `/ready`, qui répond 503 sans base. Si la liveness avait dépendu de la base, l'application
+aurait redémarré en boucle alors qu'elle servait encore des pages.
 
 ---
 
-## 4. Partie 3 : déploiement sur Kubernetes
-
-### 4.1 Ressources créées
+## 3. Déploiement sur Kubernetes
 
 Le module `k8s` crée le namespace, une ConfigMap, un Secret, le Deployment de l'application, son
-Service, l'Ingress, le HorizontalPodAutoscaler, la ClusterPolicy Kyverno, ainsi que le Deployment,
-le Service et la PersistentVolumeClaim de PostgreSQL.
+Service en `ClusterIP`, l'Ingress, le HPA, la ClusterPolicy Kyverno, ainsi que le Deployment, le
+Service et la PVC de PostgreSQL. Aucun Service n'est exposé directement : l'entrée passe
+uniquement par l'Ingress.
 
 ![Capture 10](captures-stack-david/10-k8s-deployments.png)
 
-*Capture 10 : les deux Deployments du namespace, avec leurs images à tag explicite.*
+*Capture 10 : les deux Deployments et leurs images à tag explicite.*
 
 ![Capture 11](captures-stack-david/11-k8s-pods.png)
 
-*Capture 11 : les quatre pods, tous en `Running` sur le nœud `projet-ipssi`, avec leur
-consommation CPU et mémoire relevée par metrics-server.*
+*Capture 11 : les quatre pods en `Running` sur le nœud `projet-ipssi`.*
 
 ![Capture 12](captures-stack-david/12-k8s-services.png)
 
-*Capture 12 : les Services, tous deux en `ClusterIP`. Aucun n'est exposé directement, l'entrée se
-fait uniquement par l'Ingress.*
+*Capture 12 : les Services, tous deux en `ClusterIP`.*
 
 ![Capture 13](captures-stack-david/13-k8s-ingress.png)
 
 *Capture 13 : l'Ingress `boutique-ingress` sur l'hôte `boutique.local`.*
+
+![Capture 17](captures-stack-david/17-k8s-node.png)
+
+*Capture 17 : le nœud `projet-ipssi`, nommé pour être distingué des clusters des TP précédents.*
 
 ![Capture 09](captures-stack-david/09-app-kubernetes-ingress.png)
 
 *Capture 09 : l'application servie par l'Ingress. Le namespace, le pod et le nœud sont renseignés,
 contrairement à la capture 01 sur ECS.*
 
-### 4.2 Configuration et secrets
-
-La configuration non sensible passe par une ConfigMap injectée en variables d'environnement. Le
-mot de passe PostgreSQL est généré par Terraform avec `random_password` et stocké dans un Secret.
-Il n'apparaît nulle part dans le dépôt, ni dans la ConfigMap.
+**Configuration et secrets.** La configuration non sensible passe par une ConfigMap. Le mot de
+passe PostgreSQL est généré par Terraform avec `random_password` et stocké dans un Secret. Le pod
+reçoit aussi son nom, son namespace et son nœud par l'API Downward.
 
 ![Capture 14](captures-stack-david/14-k8s-configmap.png)
 
+*Capture 14 : la ConfigMap. Elle porte les coordonnées de la base, jamais le mot de passe.*
+
 ![Capture 15](captures-stack-david/15-k8s-secret.png)
 
-*Captures 14 et 15 : la ConfigMap et le Secret. Les coordonnées de la base sont dans la ConfigMap,
-le mot de passe uniquement dans le Secret.*
+*Capture 15 : le Secret. Le mot de passe n'apparaît ni dans la ConfigMap ni dans le dépôt.*
 
-Le pod reçoit aussi son propre nom, son namespace, son nœud et son adresse IP par l'API Downward.
-Ce sont des informations que seul Kubernetes connaît au démarrage du conteneur.
-
-### 4.3 Persistance
-
-PostgreSQL monte une PersistentVolumeClaim de 1 Gio en `ReadWriteOnce`. Le volume est provisionné
-dynamiquement par le storage-provisioner de Minikube.
+**Persistance.** PostgreSQL monte une PVC de 1 Gio en `ReadWriteOnce`, provisionnée dynamiquement.
+Sa stratégie est en `Recreate` et non `RollingUpdate`, un volume `ReadWriteOnce` n'étant montable
+que par un pod à la fois. Les données sont écrites dans un sous-répertoire du point de montage,
+celui-ci contenant un `lost+found` que l'initialisation de PostgreSQL refuse.
 
 ![Capture 16](captures-stack-david/16-k8s-pvc.png)
 
 *Capture 16 : la PVC est en `Bound`, liée à un PersistentVolume créé automatiquement.*
 
-Deux points ont demandé un ajustement. La stratégie de déploiement de PostgreSQL est en `Recreate`
-et non en `RollingUpdate` : un volume `ReadWriteOnce` ne peut être monté que par un pod à la fois,
-et un rolling update se serait bloqué. Par ailleurs, les données sont écrites dans un
-sous-répertoire du point de montage, car celui-ci contient un dossier `lost+found` que
-l'initialisation de PostgreSQL refuse.
-
-### 4.4 Mise à l'échelle
-
-Le HorizontalPodAutoscaler surveille la consommation CPU des pods et ajuste le nombre de réplicas
-entre 3 et 8, avec une cible de 50 %.
+**Mise à l'échelle.** Le HPA ajuste les réplicas entre 3 et 8 selon le CPU, cible à 50 %. Le calcul
+se fait sur les `requests` du Deployment, ici 50 millicores : sans elles, le HPA n'a pas de base de
+calcul. La fenêtre de stabilisation de descente est réduite de 300 à 30 secondes pour rendre la
+redescente observable en démonstration.
 
 ![Capture 18](captures-stack-david/18-k8s-hpa.png)
 
-*Capture 18 : le HPA, ses seuils et ses conditions. `AbleToScale` et `ScalingActive` confirment
-qu'il reçoit bien les métriques.*
+*Capture 18 : le HPA, ses seuils et ses conditions. `AbleToScale` confirme qu'il reçoit les
+métriques.*
 
-Le calcul se fait par rapport aux `requests` déclarées dans le Deployment, ici 50 millicores. Sans
-`requests`, le HPA n'a pas de base de calcul et reste inopérant. Nous avons aussi réduit la fenêtre
-de stabilisation de descente de 300 à 30 secondes, pour rendre la redescente observable pendant une
-démonstration.
-
-### 4.5 Garde-fou de sécurité
-
-Une ClusterPolicy Kyverno interdit le déploiement de tout pod dont l'image porte le tag `latest`
-dans le namespace du projet, en mode `Enforce`.
+**Garde-fou.** Une ClusterPolicy Kyverno, décrite en Terraform, interdit en mode `Enforce` tout pod
+dont l'image porte le tag `latest`.
 
 ![Capture 19](captures-stack-david/19-k8s-kyverno-policy.png)
 
-*Capture 19 : la ClusterPolicy `boutique-interdire-latest`. Le YAML indique `manager: Terraform`,
-ce qui confirme qu'elle provient du code et non d'un `kubectl apply` manuel.*
-
-Nous avons vérifié qu'elle bloque réellement :
+*Capture 19 : la ClusterPolicy. Le YAML indique `manager: Terraform`, donc elle vient du code et
+non d'un `kubectl apply` manuel.*
 
 ```bash
 kubectl run test-latest --image=nginx:latest -n boutique
@@ -246,24 +177,20 @@ kubectl run test-latest --image=nginx:latest -n boutique
 
 ![Capture 20](captures-stack-david/20-kyverno-refus.png)
 
-*Capture 20 : le webhook d'admission refuse la création. Le message affiché est celui que nous
-avons écrit dans la règle, ce qui prouve que c'est bien notre politique qui agit. Le pod n'est pas
-créé.*
+*Capture 20 : le webhook refuse la création, avec le message écrit dans notre règle. Le pod n'est
+pas créé.*
 
 ---
 
-## 5. Partie 4 : automatisation avec Jenkins
+## 4. Automatisation avec Jenkins
 
-### 5.1 Le pipeline
-
-Un `Jenkinsfile` unique, versionné dans le dépôt, pilote les deux cibles. Le job Jenkins est de
-type Pipeline from SCM : il lit le Jenkinsfile depuis Git, ce qui garantit que le pipeline évolue
-avec le code.
+Un `Jenkinsfile` unique, versionné, pilote les deux cibles. Le job est de type Pipeline from SCM :
+il lit le Jenkinsfile depuis Git, donc le pipeline évolue avec le code.
 
 | Étape | Rôle |
 |---|---|
 | Checkout | récupère le code versionné |
-| Init | `terraform init`, se connecte au backend S3 |
+| Init | `terraform init`, connexion au backend S3 |
 | Validate | `terraform fmt -check -recursive` puis `terraform validate` |
 | Plan | un plan couvrant les deux cibles, archivé comme artefact |
 | Approve | le pipeline s'arrête et attend une validation humaine |
@@ -274,60 +201,49 @@ avec le code.
 
 *Capture 21 : le pipeline complet.*
 
-### 5.2 Idempotence
+**Idempotence.** Sur une infrastructure déjà conforme, le plan annonce `No changes` et l'apply se
+termine par `0 added, 0 changed, 0 destroyed`. C'est le backend S3 qui le permet : Jenkins travaille
+dans un espace vierge à chaque exécution et, avec un état local, aurait tenté de recréer les 26
+ressources existantes. Le bucket est versionné, chiffré en AES-256, accès public bloqué.
 
-Le pipeline est rejouable. Sur une infrastructure déjà conforme, le plan annonce `No changes` et
-l'apply se termine par `0 added, 0 changed, 0 destroyed`. Seules les différences sont appliquées.
-
-C'est le backend S3 qui rend cela possible. Jenkins travaille dans un espace de travail vierge à
-chaque exécution. Avec un état local, il n'aurait rien connu de l'existant et aurait tenté de
-recréer les 26 ressources déjà déployées. En plaçant l'état sur S3, le poste de travail et Jenkins
-partagent la même vision de l'infrastructure. Le bucket est versionné, chiffré en AES-256, et son
-accès public est bloqué.
-
-### 5.3 Approbation humaine
-
-L'étape `Approve` est le point de gouvernance. Le plan est affiché et archivé avant que quiconque
-puisse appliquer. Aucune modification d'infrastructure ne part sans relecture, ce qui est la
-différence entre une automatisation et un automatisme.
+**Gouvernance.** L'étape `Approve` arrête le pipeline et affiche le plan avant application. Aucune
+modification ne part sans relecture humaine.
 
 ---
 
-## 6. Sécurité
+## 5. Sécurité
 
-**Moindre privilège réseau.** Deux Security Groups sont définis côté ECS. Celui de l'ALB accepte le
-HTTP depuis Internet. Celui des tâches n'accepte que le port 8080 et uniquement depuis le Security
-Group de l'ALB, jamais depuis Internet. Une tâche n'est donc joignable qu'à travers le
-répartiteur de charge.
+**Moindre privilège réseau.** Le Security Group de l'ALB accepte le HTTP depuis Internet, celui des
+tâches n'accepte que le port 8080 et uniquement depuis le Security Group de l'ALB. Une tâche n'est
+joignable qu'à travers le répartiteur de charge.
 
 ![Capture 05](captures-stack-david/05-security-group-taches.png)
 
 *Capture 05 : une seule règle entrante, dont la source est le Security Group de l'ALB.*
 
-**Moindre privilège IAM.** L'execution role est `LabRole`, comme l'impose AWS Academy. Aucun rôle
-n'est créé par le projet.
+**Moindre privilège IAM.** L'execution role est `LabRole`. Aucun rôle n'est créé par le projet.
 
-**Aucun secret en dur.** Les identifiants AWS sont temporaires et ne sont jamais versionnés. Le
-fichier `terraform.tfvars` et l'état Terraform sont exclus par `.gitignore`, l'état contenant en
-clair les valeurs des ressources. Le mot de passe PostgreSQL est généré par Terraform et vit dans
-un Secret Kubernetes. Côté Jenkins, l'ARN du LabRole est fourni par une variable d'environnement
-globale définie hors du dépôt, et les identifiants AWS sont recopiés vers le compte de service par
-un script dédié.
+**Aucun secret en dur.** Les identifiants AWS sont temporaires et jamais versionnés.
+`terraform.tfvars` et l'état Terraform sont exclus par `.gitignore`, l'état contenant en clair les
+valeurs des ressources. Le mot de passe PostgreSQL vit dans un Secret. Côté Jenkins, l'ARN du
+LabRole vient d'une variable d'environnement définie hors du dépôt.
 
 **Images taguées.** Le tag `latest` n'est utilisé nulle part. Le dépôt ECR est en mode `IMMUTABLE`,
 donc un tag publié ne peut plus être écrasé, avec analyse de vulnérabilités à chaque push. Côté
-Kubernetes, la ClusterPolicy Kyverno refuse tout pod sans tag explicite.
+Kubernetes, Kyverno refuse tout pod sans tag explicite.
 
 ![Capture 06](captures-stack-david/06-ecr-tag-immutable.png)
 
+*Capture 06 : le dépôt ECR en mode immuable, chiffré en AES-256.*
+
 ![Capture 07](captures-stack-david/07-ecr-images-versions.png)
 
-*Captures 06 et 07 : le dépôt est en mode immuable, et les trois versions successives coexistent
-avec des empreintes distinctes. Aucune image n'a été écrasée d'un déploiement à l'autre.*
+*Capture 07 : les versions successives coexistent avec des empreintes distinctes. Aucune image n'a
+été écrasée d'un déploiement à l'autre.*
 
 ---
 
-## 7. Résilience
+## 6. Résilience
 
 | | ECS | Kubernetes |
 |---|---|---|
@@ -339,102 +255,65 @@ avec des empreintes distinctes. Aucune image n'a été écrasée d'un déploieme
 | Mise à l'échelle | `desired_count` | HPA sur le CPU, de 3 à 8 |
 
 Sur ECS, le circuit breaker annule et restaure automatiquement un déploiement qui échoue. Avec
-`minimum_healthy_percent` à 100 et `maximum_percent` à 200, une nouvelle tâche est démarrée et
-déclarée saine avant qu'une ancienne soit retirée.
+`minimum_healthy_percent` à 100, une nouvelle tâche est démarrée et déclarée saine avant qu'une
+ancienne soit retirée. Nous l'avons observé lors d'un changement de version : deux tâches sont
+restées en service pendant toute la bascule et l'ALB a répondu 200 sans interruption.
 
-Nous l'avons observé lors du passage en version 8.1.0 : ECS a maintenu deux tâches en service
-pendant toute la bascule, et l'ALB a répondu 200 sans interruption.
-
-Sur Kubernetes, le même principe s'applique avec `maxUnavailable: 0` et `maxSurge: 1`. Un hook
-`preStop` fait patienter le conteneur cinq secondes avant l'arrêt, le temps que le Service retire
-le pod de ses endpoints, ce qui évite de perdre les requêtes en cours.
+Sur Kubernetes, même principe avec `maxUnavailable: 0` et `maxSurge: 1`. Un hook `preStop` fait
+patienter le conteneur cinq secondes, le temps que le Service retire le pod de ses endpoints, ce
+qui évite de perdre les requêtes en cours.
 
 ---
 
-## 8. Reproductibilité
+## 7. Reproductibilité et traçabilité
 
-Les deux déploiements se recréent intégralement depuis le dépôt. Aucune étape manuelle n'est
-laissée hors du code : le dépôt ECR, le cluster, le service, l'ALB, les Security Groups, le
-namespace, la base et la politique de gouvernance sont tous décrits en Terraform.
-
-Trois éléments seulement dépendent du poste et sont documentés dans le README : les identifiants
-AWS de la session Academy, le nom du bucket d'état, et le chargement de l'image dans Minikube.
-Ce dernier point vient d'une limite d'Academy : Minikube ne peut pas s'authentifier auprès d'ECR
-sans imagePullSecret, l'image est donc chargée localement avec `minikube image load`.
-
-Le projet se redéploie sur un compte AWS Academy différent sans modifier une ligne de code, en
-surchargeant le bucket à l'initialisation et en renseignant les variables :
+Les deux déploiements se recréent intégralement depuis le dépôt. Trois éléments seulement dépendent
+du poste et sont documentés dans le README : les identifiants AWS de la session Academy, le nom du
+bucket d'état, et le chargement de l'image dans Minikube, ce dernier point venant d'une limite
+d'Academy puisque Minikube ne peut pas s'authentifier auprès d'ECR sans imagePullSecret. Le projet
+se redéploie sur un autre compte Academy sans modifier une ligne de code :
 
 ```bash
 terraform init -reconfigure -backend-config="bucket=tfstate-ipssi-<ID_DU_COMPTE>"
 ```
 
-![Capture 17](captures-stack-david/17-k8s-node.png)
-
-*Capture 17 : le nœud du cluster, nommé `projet-ipssi` pour être distingué des clusters des TP
-précédents.*
-
----
-
-## 9. Traçabilité
-
-L'historique compte 20 commits aux messages explicites, décrivant chacun une modification
-cohérente. Les corrections apportées en cours de projet sont visibles dans cet historique plutôt
-que fondues dans un commit final.
-
-Les journaux applicatifs de la cible ECS sont centralisés dans CloudWatch, avec une rétention de
-sept jours.
-
-![Capture 08](captures-stack-david/08-cloudwatch-logs.png)
-
-*Capture 08 : le groupe de logs `/ecs/boutique` et ses flux, un par tâche.*
-
-Côté Terraform, l'état sur S3 est versionné : chaque apply crée une nouvelle version de l'état, ce
-qui permet de revenir en arrière et de savoir quand une ressource a changé. Le plan de chaque
-exécution Jenkins est archivé comme artefact du build, ce qui laisse une trace de ce qui a été
-soumis à approbation.
+L'historique Git est fait de commits atomiques aux messages explicites. L'état sur S3 est versionné,
+ce qui permet de savoir quand une ressource a changé et de revenir en arrière. Le plan de chaque
+exécution Jenkins est archivé comme artefact du build.
 
 ---
 
-## 10. Difficultés rencontrées
+## 8. Difficultés rencontrées
 
 | Problème | Cause | Solution |
 |---|---|---|
 | Suppression du target group refusée | le listener le référence encore | `name_prefix` et `create_before_destroy` |
 | `CrashLoopBackOff` au premier déploiement | port 80 déclaré au lieu de 8080 | correction dans les deux modules |
-| PostgreSQL refuse de s'initialiser | `lost+found` dans le point de montage | données écrites dans un sous-répertoire |
-| HPA sans effet | fenêtre de stabilisation par défaut trop longue | `select_policy` et fenêtre à 30 s |
+| PostgreSQL refuse de s'initialiser | `lost+found` dans le point de montage | données dans un sous-répertoire |
+| HPA sans effet | fenêtre de stabilisation trop longue | `select_policy` et fenêtre à 30 s |
 | Jenkins voulait recréer les 26 ressources | espace de travail vierge, état local | backend S3 partagé |
 | Vérification ECS en échec dans Jenkins | l'AWS CLI reprenait la région du poste | `AWS_DEFAULT_REGION` figée dans le Jenkinsfile |
 
-La dernière mérite un mot. L'erreur mentionnait une ressource en `eu-west-3` alors que tout le
-projet est en `us-east-1`. Le fichier de configuration de l'AWS CLI du poste portait encore cette
-région d'un TP antérieur. Terraform n'était pas affecté car son provider fixe la région
-explicitement, mais l'AWS CLI appelée dans l'étape de vérification, non. Figer la région dans le
-Jenkinsfile règle le problème et rend le pipeline indépendant de la configuration de la machine.
+La dernière est instructive : l'erreur mentionnait une ressource en `eu-west-3` alors que le projet
+est en `us-east-1`. Le fichier de configuration de l'AWS CLI du poste portait encore cette région.
+Terraform n'était pas affecté, son provider fixant la région explicitement, mais l'AWS CLI appelée
+dans l'étape de vérification, si.
 
 ---
 
-## 11. Limites et pistes
+## 9. Limites
 
-La cible Kubernetes est un Minikube local. Les manifestes sont transposables vers EKS, mais
-l'Ingress devrait y être remplacé par un contrôleur adossé à un load balancer AWS, et le stockage
-par une StorageClass EBS.
+La cible Kubernetes est un Minikube local. Vers EKS, l'Ingress devrait être remplacé par un
+contrôleur adossé à un load balancer AWS et le stockage par une StorageClass EBS.
 
-La base de données n'est présente que sur la cible Kubernetes. Une architecture réelle utiliserait
-un service managé partagé par les deux cibles.
-
-Le pipeline s'arrête au déploiement de l'infrastructure. La construction et la publication de
-l'image restent manuelles. Une étape supplémentaire pourrait les intégrer, avec un tag dérivé du
-commit Git.
-
-Enfin, les identifiants AWS sont recopiés vers le compte de service Jenkins par un script. Un
-environnement de production utiliserait le gestionnaire d'identifiants de Jenkins ou un rôle IAM
-porté par l'agent.
+Le pipeline s'arrête au déploiement de l'infrastructure : la construction et la publication de
+l'image restent manuelles. Enfin, les identifiants AWS sont recopiés vers le compte de service
+Jenkins par un script ; en production on utiliserait le gestionnaire d'identifiants de Jenkins ou un
+rôle IAM porté par l'agent.
 
 ---
 
-## 12. Répartition du binôme
+## 10. Répartition du binôme
 
 Chacun a écrit sa part du code, puis déployé et exploité sa propre stack, sur son compte AWS
 Academy et son cluster Minikube. Les deux membres savent expliquer l'ensemble de la chaîne.
@@ -449,23 +328,20 @@ Academy et son cluster Minikube. Les deux membres savent expliquer l'ensemble de
 | Scripts d'exploitation Kubernetes | Rédaction | |
 | Pipeline Jenkins | Version écrite puis comparée | Version écrite puis comparée |
 | Rapport écrit | Rédaction | Relecture |
-| Déploiement et captures | Sa propre stack | Sa propre stack |
-| Démonstration | Ses deux cibles | Ses deux cibles |
+| Déploiement, captures, démonstration | Sa propre stack | Sa propre stack |
 
-Chacun a écrit son propre `Jenkinsfile`. Nous les avons comparés, puis retenu une seule version
-pour le dépôt commun, celle dont l'étape de vérification interrogeait les deux cibles en
-parallèle. Les deux membres savent en dérouler chaque étape.
+Chacun a écrit son propre `Jenkinsfile`. Nous les avons comparés puis retenu une seule version pour
+le dépôt commun. Les captures de chaque stack sont dans le dépôt, sous `docs/captures-stack-david`
+et `docs/captures-stack-daniele`.
 
 ---
 
-## 13. Bilan
+## 11. Bilan
 
-Les quatre briques demandées sont en place. La même application tourne sur ECS Fargate et sur
-Kubernetes, les deux déploiements sont décrits par un seul code Terraform en deux modules, et un
-pipeline Jenkins gouverné les applique après approbation.
+Les quatre briques sont en place : la même application tourne sur ECS Fargate et sur Kubernetes,
+les deux déploiements sont décrits par un seul code Terraform en deux modules, et un pipeline
+Jenkins gouverné les applique après approbation.
 
 Ce que le projet nous a le plus appris n'est pas la syntaxe de Terraform mais la gestion de l'état.
-Tant que l'état restait local, l'automatisation n'était qu'une apparence : le pipeline aurait
-détruit et recréé une infrastructure existante. Le déplacer sur S3 a transformé le pipeline en
-outil réellement idempotent, ce qui est la condition pour qu'une chaîne de déploiement soit
-utilisable plus d'une fois.
+Tant qu'il restait local, l'automatisation n'était qu'une apparence : le pipeline aurait détruit et
+recréé une infrastructure existante. Le déplacer sur S3 a rendu la chaîne réellement idempotente.

@@ -27,3 +27,6 @@ credentials
 # Divers
 .DS_Store
 *.log
+
+# Fichiers Word generes a partir du rapport
+docs/*.docx
