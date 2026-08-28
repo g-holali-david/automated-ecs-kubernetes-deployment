@@ -1,0 +1,14 @@
+flowchart TB
+    GIT["Git<br/>code Terraform + Jenkinsfile"]
+    JEN["Jenkins<br/>validate, plan, approbation,<br/>apply, verify"]
+    TER["Terraform<br/>un seul etat, deux modules"]
+    S3[("Etat sur S3<br/>versionne, chiffre")]
+
+    ECS["Amazon ECS (Fargate)<br/>ECR, Cluster, TaskDef<br/>Service, ALB + 2 SG<br/>CloudWatch Logs"]
+    K8S["Kubernetes (Minikube)<br/>Namespace, ConfigMap, Secret<br/>Deployment, Service, Ingress<br/>HPA, PVC, Kyverno"]
+
+    GIT -- "checkout" --> JEN
+    JEN -- "pilote" --> TER
+    TER --- S3
+    TER -- "provider aws" --> ECS
+    TER -- "provider kubernetes" --> K8S
