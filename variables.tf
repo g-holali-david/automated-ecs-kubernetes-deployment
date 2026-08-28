@@ -56,3 +56,9 @@ variable "k8s_host" {
   type        = string
   default     = "boutique.local"
 }
+
+variable "kyverno_active" {
+  description = "Active le garde-fou Kyverno sur la cible Kubernetes"
+  type        = bool
+  default     = true
+}

@@ -13,8 +13,9 @@ module "ecs" {
 module "k8s" {
   source = "./modules/k8s"
 
-  projet   = var.projet
-  image    = var.image
-  replicas = var.k8s_replicas
-  host     = var.k8s_host
+  projet         = var.projet
+  image          = var.image
+  replicas       = var.k8s_replicas
+  host           = var.k8s_host
+  kyverno_active = var.kyverno_active
 }

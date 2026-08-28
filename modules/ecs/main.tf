@@ -11,7 +11,7 @@ data "aws_subnets" "default" {
   }
 }
 
-# ---------- Registre d'images ----------
+# Registre d'images
 
 resource "aws_ecr_repository" "app" {
   name = var.projet
@@ -25,7 +25,7 @@ resource "aws_ecr_repository" "app" {
   }
 }
 
-# ---------- Groupes de securite ----------
+# Groupes de securite 
 
 # L'ALB est le seul point d'entree public
 resource "aws_security_group" "alb" {
@@ -71,7 +71,7 @@ resource "aws_security_group" "tasks" {
   }
 }
 
-# ---------- Repartiteur de charge ----------
+# Repartiteur de charge
 
 resource "aws_lb" "app" {
   name               = "${var.projet}-alb"
@@ -108,14 +108,14 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# ---------- Journalisation ----------
+# Journalisation
 
 resource "aws_cloudwatch_log_group" "app" {
   name              = "/ecs/${var.projet}"
   retention_in_days = 7
 }
 
-# ---------- Cluster et service ----------
+# Cluster et service
 
 resource "aws_ecs_cluster" "app" {
   name = "${var.projet}-cluster"

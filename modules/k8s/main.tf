@@ -194,6 +194,8 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "app" {
       scale_down {
         # Reduit de 300s a 30s pour rendre la descente observable en demonstration
         stabilization_window_seconds = 30
+        # Obligatoire des qu'une policy est declaree
+        select_policy = "Max"
         policy {
           type           = "Percent"
           value          = 100

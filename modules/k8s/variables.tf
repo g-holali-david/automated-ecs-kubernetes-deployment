@@ -35,3 +35,9 @@ variable "hpa_cpu_target" {
   type        = number
   default     = 50
 }
+
+variable "kyverno_active" {
+  description = "Cree la ClusterPolicy Kyverno. Necessite que Kyverno soit installe sur le cluster."
+  type        = bool
+  default     = true
+}
