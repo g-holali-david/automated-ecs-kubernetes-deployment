@@ -45,6 +45,7 @@ validation du plan.
 .
 ├── Jenkinsfile                 pipeline pilotant les deux cibles
 ├── providers.tf                providers aws + kubernetes
+├── backend.tf                  etat Terraform stocke sur S3
 ├── main.tf                     appelle les modules ecs et k8s
 ├── variables.tf                variables communes et par cible
 ├── outputs.tf                  URLs et état des deux déploiements
@@ -96,6 +97,10 @@ aws iam get-role --role-name LabRole --query Role.Arn --output text
 
 L'ARN obtenu est à reporter dans `terraform.tfvars`.
 
+L'état Terraform est stocké sur S3 (`backend.tf`), ce qui permet au poste de travail et
+à Jenkins de travailler sur le même état. Le bucket est versionné et chiffré, et son
+accès public est bloqué.
+
 ## Exécution manuelle
 
 ```bash
@@ -135,7 +140,12 @@ démarrage de Minikube, car le port de l'API change :
 
 ```bash
 sudo bash scripts/refresh-kubeconfig.sh projet-ipssi
+sudo bash scripts/sync-aws-credentials.sh
 ```
+
+Le second script recopie les identifiants AWS Academy vers le compte `jenkins`, à
+relancer à chaque nouvelle session. L'ARN du LabRole est fourni à Jenkins par la
+variable d'environnement globale `TF_VAR_lab_role_arn`, définie hors du dépôt.
 
 ## Sécurité
 
