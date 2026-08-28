@@ -18,13 +18,13 @@ variable "auteurs" {
 variable "image_ecs" {
   description = "Image applicative pour ECS (depot ECR, tag explicite)"
   type        = string
-  default     = "674501463174.dkr.ecr.us-east-1.amazonaws.com/boutique:v8.0.0"
+  default     = "674501463174.dkr.ecr.us-east-1.amazonaws.com/boutique:v8.1.0"
 }
 
 variable "image_k8s" {
   description = "Image applicative pour Kubernetes, chargee via minikube image load"
   type        = string
-  default     = "web-ipssi:v8.0.0"
+  default     = "web-ipssi:v8.1.0"
 }
 
 # Variable pour le déploiement ECS
